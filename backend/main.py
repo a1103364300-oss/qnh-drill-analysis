@@ -66,8 +66,16 @@ def process_data():
     df_current = df_current.rename(columns=col_mapping)
     df_last = df_last.rename(columns=col_mapping)
     
+    # 提取一级分类（用 > 分隔，取第一段）
+    df_current['category1'] = df_current['category'].apply(
+        lambda x: str(x).split('>')[0].strip() if pd.notna(x) and '>' in str(x) else str(x).strip()
+    )
+    df_last['category1'] = df_last['category'].apply(
+        lambda x: str(x).split('>')[0].strip() if pd.notna(x) and '>' in str(x) else str(x).strip()
+    )
+    
     # 按 SKU + 门店 + 分类 聚合
-    group_cols = ['sku', 'product_name', 'spec', 'category', 'store']
+    group_cols = ['sku', 'product_name', 'spec', 'category', 'category1', 'store']
     
     current_agg = df_current.groupby(group_cols, as_index=False).agg({
         'quantity': 'sum',
@@ -145,9 +153,49 @@ async def get_stores():
     return {"stores": ["全部"] + stores}
 
 
+@app.get("/api/categories1")
+async def get_categories1(store: Optional[str] = None):
+    """获取一级分类汇总数据"""
+    if data_store["merged"] is None:
+        raise HTTPException(status_code=400, detail="请先上传数据")
+    
+    df = data_store["merged"].copy()
+    
+    if store and store != "全部":
+        df = df[df['store'] == store]
+    
+    cat1_summary = df.groupby('category1', as_index=False).agg({
+        'current_qty': 'sum',
+        'last_qty': 'sum',
+        'current_amount': 'sum',
+        'last_amount': 'sum'
+    })
+    
+    cat1_summary['qty_change'] = cat1_summary['current_qty'] - cat1_summary['last_qty']
+    cat1_summary['qty_change_pct'] = cat1_summary.apply(
+        lambda x: (x['qty_change'] / x['last_qty'] * 100) if x['last_qty'] != 0 else 0, axis=1
+    )
+    cat1_summary['amount_change'] = cat1_summary['current_amount'] - cat1_summary['last_amount']
+    cat1_summary['amount_change_pct'] = cat1_summary.apply(
+        lambda x: (x['amount_change'] / x['last_amount'] * 100) if x['last_amount'] != 0 else 0, axis=1
+    )
+    
+    cat1_summary = cat1_summary.sort_values('qty_change', ascending=True)
+    
+    return {
+        "categories": cat1_summary.to_dict(orient='records'),
+        "total": {
+            "current_qty": df['current_qty'].sum(),
+            "last_qty": df['last_qty'].sum(),
+            "current_amount": df['current_amount'].sum(),
+            "last_amount": df['last_amount'].sum()
+        }
+    }
+
+
 @app.get("/api/categories")
-async def get_categories(store: Optional[str] = None):
-    """获取分类汇总数据"""
+async def get_categories(store: Optional[str] = None, category1: Optional[str] = None):
+    """获取分类汇总数据（二级分类）"""
     if data_store["merged"] is None:
         raise HTTPException(status_code=400, detail="请先上传数据")
     
@@ -156,6 +204,10 @@ async def get_categories(store: Optional[str] = None):
     # 按门店筛选
     if store and store != "全部":
         df = df[df['store'] == store]
+    
+    # 按一级分类筛选
+    if category1 and category1 != "全部":
+        df = df[df['category1'] == category1]
     
     # 按分类聚合
     cat_summary = df.groupby('category', as_index=False).agg({
