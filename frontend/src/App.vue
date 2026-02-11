@@ -171,9 +171,8 @@ import axios from 'axios'
 import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
 
-// 设置 API 基础路径
-const API_BASE = import.meta.env.BASE_URL || '/qnh-drill/'
-axios.defaults.baseURL = API_BASE
+// API 基础路径：生产环境由 nginx 代理，开发环境由 vite proxy 处理
+axios.defaults.baseURL = import.meta.env.BASE_URL || '/qnh-drill/'
 
 // 状态
 const dataLoaded = ref(false)
@@ -291,24 +290,28 @@ const renderChart = () => {
   if (!chartRef.value) return
 
   if (!chartInstance) {
-    chartInstance = echarts.init(chartRef.value)
+    chartInstance = echarts.init(chartRef.value, 'dark')
   }
 
-  const data = topDecline.value.slice(0, 50) // 显示前50个
+  const data = topDecline.value.slice(0, 50)
 
   const option = {
+    backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
+      backgroundColor: 'rgba(20, 20, 35, 0.95)',
+      borderColor: 'rgba(100, 100, 255, 0.2)',
+      textStyle: { color: '#e0e0f0' },
       formatter: (params) => {
         const item = params[0]
         const product = data[item.dataIndex]
         return `
-          <strong>${product.product_name}</strong><br/>
-          规格: ${product.spec}<br/>
+          <strong style="color:#fff">${product.product_name}</strong><br/>
+          <span style="color:#a0a0b0">规格: ${product.spec}</span><br/>
           上周期: ${product.last_qty}<br/>
           本周期: ${product.current_qty}<br/>
-          变化: <span style="color: #67C23A">${product.qty_change}</span>
+          变化: <span style="color: #4ade80">${product.qty_change}</span>
         `
       }
     },
@@ -321,18 +324,18 @@ const renderChart = () => {
     xAxis: {
       type: 'category',
       data: data.map((_, i) => i + 1),
-      axisLabel: {
-        interval: 4,
-        rotate: 0
-      },
-      name: '排名'
+      axisLabel: { interval: 4, rotate: 0, color: '#a0a0b0' },
+      axisLine: { lineStyle: { color: 'rgba(100,100,255,0.2)' } },
+      name: '排名',
+      nameTextStyle: { color: '#a0a0b0' }
     },
     yAxis: {
       type: 'value',
       name: '销量变化',
-      axisLabel: {
-        formatter: (val) => val
-      }
+      nameTextStyle: { color: '#a0a0b0' },
+      axisLabel: { formatter: (val) => val, color: '#a0a0b0' },
+      axisLine: { lineStyle: { color: 'rgba(100,100,255,0.2)' } },
+      splitLine: { lineStyle: { color: 'rgba(100,100,255,0.08)' } }
     },
     series: [{
       name: '销量变化',
@@ -340,12 +343,19 @@ const renderChart = () => {
       data: data.map(item => ({
         value: item.qty_change,
         itemStyle: {
-          color: '#67C23A' // 绿色表示下跌
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(74, 222, 128, 0.8)' },
+            { offset: 1, color: 'rgba(74, 222, 128, 0.3)' }
+          ]),
+          borderRadius: [4, 4, 0, 0]
         }
       })),
       emphasis: {
         itemStyle: {
-          color: '#409EFF'
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(100, 100, 255, 0.9)' },
+            { offset: 1, color: 'rgba(100, 100, 255, 0.4)' }
+          ])
         }
       }
     }],
@@ -354,7 +364,12 @@ const renderChart = () => {
       show: true,
       start: 0,
       end: 100,
-      bottom: 0
+      bottom: 0,
+      backgroundColor: 'rgba(100,100,255,0.05)',
+      borderColor: 'rgba(100,100,255,0.1)',
+      fillerColor: 'rgba(100,100,255,0.15)',
+      handleStyle: { color: '#6464ff' },
+      textStyle: { color: '#a0a0b0' }
     }]
   }
 
@@ -432,19 +447,16 @@ onMounted(() => {
 </script>
 
 <style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
+/* ===== 布局 ===== */
 .app-container {
+  background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
   min-height: 100vh;
-  background: #f5f7fa;
 }
 
 .header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgba(20, 20, 35, 0.95);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(100, 100, 255, 0.15);
   color: white;
   display: flex;
   justify-content: space-between;
@@ -456,49 +468,123 @@ onMounted(() => {
 .header h1 {
   font-size: 24px;
   font-weight: 600;
+  background: linear-gradient(135deg, #fff 0%, #a0a0c0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.el-main {
-  padding: 20px;
+.el-main { padding: 20px; }
+
+.upload-card { max-width: 600px; margin: 100px auto; }
+.filter-card { margin-bottom: 20px; }
+.filter-label { font-weight: 500; margin-right: 10px; color: #a0a0b0; }
+.data-card, .chart-card { height: calc(100vh - 220px); }
+
+/* ===== Element Plus 深色覆盖 ===== */
+.el-card {
+  background: rgba(26, 26, 45, 0.85) !important;
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(100, 100, 255, 0.15) !important;
+  border-radius: 16px !important;
 }
 
-.upload-card {
-  max-width: 600px;
-  margin: 100px auto;
+.el-card__header {
+  background: rgba(100, 100, 255, 0.1) !important;
+  border-bottom: 1px solid rgba(100, 100, 255, 0.15) !important;
+  color: #e0e0f0 !important;
 }
 
-.filter-card {
-  margin-bottom: 20px;
+.el-card__body { color: #c0c0d0; }
+
+.el-button--primary {
+  background: linear-gradient(135deg, #6464ff, #8b5cf6) !important;
+  border: none !important;
 }
 
-.filter-label {
-  font-weight: 500;
-  margin-right: 10px;
+.el-button--success {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  border: none !important;
 }
 
-.data-card, .chart-card {
-  height: calc(100vh - 220px);
+.el-button--warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  border: none !important;
+  color: #fff !important;
 }
 
-.change-up {
-  color: #F56C6C;
-  font-weight: 600;
+.el-button--danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  border: none !important;
 }
 
-.change-down {
-  color: #67C23A;
-  font-weight: 600;
-}
-
+/* 表格 */
 .el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(100, 100, 255, 0.1);
+  --el-table-row-hover-bg-color: rgba(100, 100, 255, 0.1);
+  --el-table-border-color: rgba(100, 100, 255, 0.1);
+  --el-table-text-color: #c0c0d0;
+  --el-table-header-text-color: #e0e0f0;
   font-size: 13px;
 }
 
-.el-table .el-table__row {
-  cursor: pointer;
+.el-table th.el-table__cell {
+  background: rgba(100, 100, 255, 0.1) !important;
 }
 
-.el-table .el-table__row:hover {
-  background-color: #ecf5ff !important;
+.el-table .el-table__row { cursor: pointer; }
+.el-table .el-table__row:hover { background-color: rgba(100, 100, 255, 0.15) !important; }
+
+/* 条纹行深色 */
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: rgba(100, 100, 255, 0.04) !important;
 }
+
+/* 选择器 */
+.el-select .el-input__wrapper {
+  background: rgba(30, 30, 50, 0.8) !important;
+  border: 1px solid rgba(100, 100, 255, 0.2) !important;
+  box-shadow: none !important;
+}
+.el-select .el-input__inner { color: #e0e0f0 !important; }
+
+/* 下拉菜单 */
+.el-select-dropdown {
+  background: rgba(26, 26, 45, 0.95) !important;
+  border: 1px solid rgba(100, 100, 255, 0.2) !important;
+}
+.el-select-dropdown__item { color: #c0c0d0 !important; }
+.el-select-dropdown__item.hover, .el-select-dropdown__item:hover {
+  background: rgba(100, 100, 255, 0.15) !important;
+}
+.el-select-dropdown__item.selected { color: #8b8bff !important; }
+
+/* 标签 */
+.el-tag {
+  background: rgba(100, 100, 255, 0.15) !important;
+  border: 1px solid rgba(100, 100, 255, 0.3) !important;
+  color: #a0a0ff !important;
+}
+.el-tag--info {
+  background: rgba(160, 160, 176, 0.15) !important;
+  border-color: rgba(160, 160, 176, 0.3) !important;
+  color: #a0a0b0 !important;
+}
+
+/* 表单 */
+.el-form-item__label { color: #a0a0b0 !important; }
+
+/* 上传提示 */
+.el-upload__tip { color: #6a6a7a !important; }
+
+/* ===== 数据变化色 ===== */
+.change-up { color: #ff6b6b !important; font-weight: 600; }
+.change-down { color: #4ade80 !important; font-weight: 600; }
+
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(100, 100, 255, 0.05); }
+::-webkit-scrollbar-thumb { background: rgba(100, 100, 255, 0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(100, 100, 255, 0.3); }
 </style>
